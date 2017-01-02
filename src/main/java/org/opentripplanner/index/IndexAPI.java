@@ -20,6 +20,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
+import javafx.collections.transformation.SortedList;
 import org.onebusaway.gtfs.model.Agency;
 import org.onebusaway.gtfs.model.AgencyAndId;
 import org.onebusaway.gtfs.model.Route;
@@ -28,14 +29,8 @@ import org.onebusaway.gtfs.model.Trip;
 import org.onebusaway.gtfs.model.calendar.ServiceDate;
 import org.opentripplanner.common.geometry.SphericalDistanceLibrary;
 import org.opentripplanner.gtfs.GtfsLibrary;
-import org.opentripplanner.index.model.PatternDetail;
-import org.opentripplanner.index.model.PatternShort;
-import org.opentripplanner.index.model.RouteShort;
-import org.opentripplanner.index.model.StopClusterDetail;
-import org.opentripplanner.index.model.StopShort;
-import org.opentripplanner.index.model.StopTimesInPattern;
-import org.opentripplanner.index.model.TripShort;
-import org.opentripplanner.index.model.TripTimeShort;
+import org.opentripplanner.index.model.*;
+import org.opentripplanner.profile.Segment;
 import org.opentripplanner.profile.StopCluster;
 import org.opentripplanner.routing.edgetype.SimpleTransfer;
 import org.opentripplanner.routing.edgetype.Timetable;
@@ -65,12 +60,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 // TODO move to org.opentripplanner.api.resource, this is a Jersey resource class
 
@@ -277,7 +267,50 @@ public class IndexAPI {
         List<StopTimesInPattern> ret = index.getStopTimesForStop(stop, sd);
         return Response.status(Status.OK).entity(ret).build();
     }
-    
+
+    @GET
+    @Path("/patterns/{patternId}/stoptimes/{orig}/{dest}")
+    public Response getStoptimesForPatternAndStops (@PathParam("patternId") String patternIdString,
+                                                    @PathParam("orig") int orig,
+                                                    @PathParam("dest") int dest,
+                                                    @QueryParam("startTime") long startTime,
+                                                    @QueryParam("timeRange") @DefaultValue("86400") int timeRange) {
+        TripPattern pattern = index.patternForId.get(patternIdString);
+        if (pattern == null) {
+            return Response.status(Status.NOT_FOUND).entity(MSG_404).build();
+        }
+        else {
+            return Response.status(Status.OK).entity(index.stopTimesForPattern(pattern, orig, dest, startTime, timeRange)).build();
+        }
+    }
+
+    @GET
+    @Path("/stoptime/schedules")
+    public Response getStoptimesForPatternAndStops (@QueryParam("patternIds") String patternIdsString,
+                                                    @QueryParam("origs") String origsString,
+                                                    @QueryParam("dests") String destsString,
+                                                    @QueryParam("startTime") long startTime,
+                                                    @QueryParam("timeRange") @DefaultValue("86400") int timeRange) {
+
+        List<String> patternIds = Arrays.asList(patternIdsString.split(","));
+        List<String> origs = Arrays.asList(origsString.split(","));
+        List<String> dests = Arrays.asList(destsString.split(","));
+
+        List<StopPairSchedule> ret = new ArrayList<>();
+
+        for (int i = 0; i < patternIds.size(); i++) {
+            String patternIdString = patternIds.get(i);
+            int orig = Integer.parseInt(origs.get(i));
+            int dest = Integer.parseInt(dests.get(i));
+            TripPattern pattern = index.patternForId.get(patternIdString);
+            ret.addAll(index.stopTimesForPattern(pattern, orig, dest, startTime, timeRange));
+        }
+
+        ret.sort((s1, s2) -> s1.orig.scheduledArrival - s2.orig.scheduledArrival);
+
+        return Response.status(Status.OK).entity(ret).build();
+    }
+
     /**
      * Return the generated transfers a stop in the graph, by stop ID
      */

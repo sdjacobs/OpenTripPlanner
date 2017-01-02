@@ -1,13 +1,18 @@
 package org.opentripplanner.routing.graph;
 
 import com.google.common.collect.ArrayListMultimap;
+
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Calendar;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -33,6 +38,7 @@ import org.opentripplanner.common.geometry.SphericalDistanceLibrary;
 import org.opentripplanner.common.model.GenericLocation;
 import org.opentripplanner.common.model.P2;
 import org.opentripplanner.index.IndexGraphQLSchema;
+import org.opentripplanner.index.model.StopPairSchedule;
 import org.opentripplanner.index.model.StopTimesInPattern;
 import org.opentripplanner.index.model.TripTimeShort;
 import org.opentripplanner.profile.ProfileTransfer;
@@ -57,11 +63,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.Response;
-import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -412,7 +415,8 @@ public class GraphIndex {
         if (graph.timetableSnapshotSource != null) {
             snapshot = graph.timetableSnapshotSource.getTimetableSnapshot();
         }
-        ServiceDate[] serviceDates = {new ServiceDate().previous(), new ServiceDate(), new ServiceDate().next()};
+        Date day = new Date(startTime * 1000);
+        ServiceDate[] serviceDates = {new ServiceDate(day).previous(), new ServiceDate(day), new ServiceDate(day).next()};
 
         for (TripPattern pattern : patternsForStop.get(stop)) {
 
@@ -518,6 +522,61 @@ public class GraphIndex {
         }
         return ret;
     }
+
+    /**
+     * Fetch upcoming schedules between two stops on a given pattern.
+     * Based on stopTimesForStop
+     *
+     * TODO: Add frequency based trips
+     * @param startTime Start time for the search. Seconds from UNIX epoch
+     * @param timeRange Searches forward for timeRange seconds from startTime
+     * @param numberOfDepartures Number of departures to fetch per pattern
+     * @return
+     */
+    public List<StopPairSchedule> stopTimesForPattern(TripPattern pattern, int origIdx, int destIdx, long startTime, int timeRange) {
+
+        if (startTime == 0) {
+            startTime = System.currentTimeMillis() / 1000;
+        }
+        List<StopPairSchedule> ret = new ArrayList<>();
+        TimetableSnapshot snapshot = null;
+        if (graph.timetableSnapshotSource != null) {
+            snapshot = graph.timetableSnapshotSource.getTimetableSnapshot();
+        }
+        ServiceDate[] serviceDates = {new ServiceDate().previous(), new ServiceDate(), new ServiceDate().next()};
+
+        // Loop through all possible days
+        for (ServiceDate serviceDate : serviceDates) {
+            ServiceDay sd = new ServiceDay(graph, serviceDate, calendarService, pattern.route.getAgency().getId());
+            Timetable tt;
+            if (snapshot != null) {
+                tt = snapshot.resolve(pattern, serviceDate);
+            } else {
+                tt = pattern.scheduledTimetable;
+            }
+
+            if (!tt.temporallyViable(sd, startTime, timeRange, true)) continue;
+
+            int secondsSinceMidnight = sd.secondsSinceMidnight(startTime);
+
+            for (TripTimes t : tt.tripTimes) {
+                if (!sd.serviceRunning(t.serviceCode)) continue;
+                if (t.getDepartureTime(origIdx) != -1
+                        && t.getDepartureTime(origIdx) >= secondsSinceMidnight
+                        && t.getArrivalTime(destIdx) != -1
+                        && t.getArrivalTime(destIdx) >= secondsSinceMidnight) {
+                    Stop orig = pattern.getStop(origIdx), dest = pattern.getStop(destIdx);
+                    TripTimeShort o = new TripTimeShort(t, origIdx, orig, sd);
+                    TripTimeShort d = new TripTimeShort(t, destIdx, dest, sd);
+                    ret.add(new StopPairSchedule(pattern, o, d));
+                }
+            }
+
+        }
+
+        return ret;
+    }
+
 
     /** Fetch a cache of nearby intersection distances for every transit stop in this graph, lazy-building as needed. */
     public StopTreeCache getStopTreeCache() {

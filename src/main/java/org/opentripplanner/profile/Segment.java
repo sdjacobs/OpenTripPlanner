@@ -1,6 +1,8 @@
 package org.opentripplanner.profile;
 
 import com.beust.jcommander.internal.Lists;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import org.onebusaway.gtfs.model.Route;
 import org.opentripplanner.index.model.RouteShort;
@@ -35,6 +37,7 @@ public class Segment {
         public int compareTo (SegmentPattern other) {
             return other.nTrips - this.nTrips;
         }
+
     }
 
     // Use AgencyAndId instead of String to get both since we are now multi-feed
@@ -54,7 +57,7 @@ public class Segment {
 
     public Segment (Ride ride) {
         Route route = ride.patternRides.get(0).pattern.route;
-        from = ride.from.id;
+            from = ride.from.id;
         to = ride.to.id;
         fromName = ride.from.name;
         toName = ride.to.name;
