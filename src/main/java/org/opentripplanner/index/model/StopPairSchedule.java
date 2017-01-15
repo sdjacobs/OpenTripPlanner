@@ -9,12 +9,12 @@ public class StopPairSchedule {
     public TripTimeShort orig;
     public TripTimeShort dest;
     public PatternShort pattern;
-    //public RouteShort route;
+    public RouteShort route;
 
     public StopPairSchedule(TripPattern pattern, TripTimeShort origin, TripTimeShort destination) {
         this.orig = origin;
         this.dest = destination;
         this.pattern = new PatternShort(pattern);
-        //this.route = new RouteShort(pattern.route);
+        this.route = new RouteShort(pattern.route);
     }
 }

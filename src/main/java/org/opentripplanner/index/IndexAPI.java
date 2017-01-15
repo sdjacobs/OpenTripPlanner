@@ -311,6 +311,20 @@ public class IndexAPI {
         return Response.status(Status.OK).entity(ret).build();
     }
 
+    @GET
+    @Path("/stops/autocomplete/{start}")
+    public Response getStopsAutocomplete(@PathParam("start") String start) {
+        String startLower = start.toLowerCase();
+        Collection<Stop> stops = index.stopForId.values();
+        Set<Stop> filtered = new HashSet<Stop>();
+        for (Stop stop : stops) {
+            if (stop.getName().toLowerCase().startsWith(startLower))
+                filtered.add(stop);
+        }
+        return Response.status(Status.OK).entity(StopShort.list(filtered)).build();
+    }
+
+
     /**
      * Return the generated transfers a stop in the graph, by stop ID
      */
