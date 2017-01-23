@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import org.onebusaway.gtfs.model.Route;
 import org.opentripplanner.index.model.RouteShort;
+import org.opentripplanner.index.model.StopPairSchedule;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +55,7 @@ public class Segment {
     public List<SegmentPattern> segmentPatterns = Lists.newArrayList();
     public String startTime;
     public String endTime;
+    public List<StopPairSchedule> schedule;
 
     public Segment (Ride ride) {
         Route route = ride.patternRides.get(0).pattern.route;

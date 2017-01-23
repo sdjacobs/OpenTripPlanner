@@ -8,12 +8,10 @@ import org.opentripplanner.api.param.LatLon;
 import org.opentripplanner.api.param.QueryParameter;
 import org.opentripplanner.api.param.YearMonthDay;
 import org.opentripplanner.api.parameter.QualifiedModeSet;
-import org.opentripplanner.profile.Option;
-import org.opentripplanner.profile.ProfileRequest;
-import org.opentripplanner.profile.ProfileResponse;
-import org.opentripplanner.profile.ProfileRouter;
-import org.opentripplanner.profile.RepeatedRaptorProfileRouter;
+import org.opentripplanner.index.model.StopPairSchedule;
+import org.opentripplanner.profile.*;
 import org.opentripplanner.routing.core.TraverseModeSet;
+import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.standalone.OTPServer;
 import org.opentripplanner.standalone.Router;
@@ -30,6 +28,9 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -147,6 +148,7 @@ public class ProfileResource {
             ProfileRouter router = new ProfileRouter(graph, req);
             try {
                 ProfileResponse response = router.route();
+                addTransitTimes(response, date);
                 return Response.status(Status.OK).entity(response).build();
             } catch (Throwable throwable) {
                 LOG.error("Exception caught in profile routing", throwable);
@@ -156,5 +158,23 @@ public class ProfileResource {
             }
         }
     }
-    
+
+
+    private void addTransitTimes(ProfileResponse response, YearMonthDay ymd) {
+        Date date = ymd.toJoda().toDate();
+        long startTime = date.getTime()/1000;
+        int timeRange = 24 * 60 * 60; // one day
+        for (Option option : response.options) {
+            for (Segment leg : option.transit) {
+                List<StopPairSchedule> schedule = new ArrayList<>();
+                for (Segment.SegmentPattern pattern : leg.segmentPatterns) {
+                    TripPattern tripPattern = graph.index.patternForId.get(pattern.patternId);
+                    List<StopPairSchedule> s =
+                            graph.index.stopTimesForPattern(tripPattern, pattern.fromIndex, pattern.toIndex, startTime, timeRange);
+                    schedule.addAll(s);
+                }
+                leg.schedule = schedule;
+            }
+        }
+    }
 }
