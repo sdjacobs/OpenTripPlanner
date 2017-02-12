@@ -165,6 +165,8 @@ public class ProfileResource {
         long startTime = date.getTime()/1000;
         int timeRange = 24 * 60 * 60; // one day
         for (Option option : response.options) {
+            if (option.transit == null)
+                continue;
             for (Segment leg : option.transit) {
                 List<StopPairSchedule> schedule = new ArrayList<>();
                 for (Segment.SegmentPattern pattern : leg.segmentPatterns) {
