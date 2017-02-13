@@ -316,12 +316,18 @@ public class IndexAPI {
     public Response getStopsAutocomplete(@PathParam("start") String start) {
         String startLower = start.toLowerCase();
         Collection<Stop> stops = index.stopForId.values();
-        Set<Stop> filtered = new HashSet<Stop>();
+        Map<String, StopShort> ret = new HashMap<>();
         for (Stop stop : stops) {
-            if (stop.getName().toLowerCase().startsWith(startLower))
-                filtered.add(stop);
+            if (stop.getName().toLowerCase().startsWith(startLower)) {
+                String shortName =  stop.getName().split("-")[0].trim();
+                if (ret.get(shortName) == null) {
+                    StopShort s = new StopShort(stop);
+                    s.name = shortName;
+                    ret.put(s.name, s);
+                }
+            }
         }
-        return Response.status(Status.OK).entity(StopShort.list(filtered)).build();
+        return Response.status(Status.OK).entity(ret.values()).build();
     }
 
 
