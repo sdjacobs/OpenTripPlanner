@@ -4,6 +4,8 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -52,9 +54,18 @@ public class StopNameNormalizer {
         {"OPP", "OPPOSITE"}
     };
 
+    private static boolean skipQuadrant(String[] words) {
+        if (words.length < 2)
+            return false;
+        String s = words[1].toUpperCase();
+        return s.equals("STATION");
+    }
+
     public static String normalize (String name) {
         // Separate the two halves of an intersection. "AT" sometimes appears too.
-        String[] parts = name.toUpperCase().split("[&@]", 2);
+//        String[] parts = name.toUpperCase().split("opp", 2);
+//        if (parts.length < 2)
+        String[] parts = name.toUpperCase().split("OPP|[&@]", 2);
         List<String> normalizedParts = Lists.newArrayList();
         for (String part : parts) {
             String quadrant = null;
@@ -67,14 +78,18 @@ public class StopNameNormalizer {
             }
 
             // 1. Strip out quadrant
-            QD: for (int i = 0; i < words.length; i++) {
-                String word = words[i];
-                for (String[] q : QUADRANTS) {
-                    for (String qn : q) {
-                        if (word.equals(qn)) {
-                            quadrant = q[0];
-                            words[i] = null;
-                            break QD;
+            // skip this if the first word is in the quadrant "South Station" "North Station"
+            if (!skipQuadrant(words)) {
+                QD:
+                for (int i = 0; i < words.length; i++) {
+                    String word = words[i];
+                    for (String[] q : QUADRANTS) {
+                        for (String qn : q) {
+                            if (word.equals(qn)) {
+                                quadrant = q[0];
+                                words[i] = null;
+                                break QD;
+                            }
                         }
                     }
                 }
@@ -140,6 +155,22 @@ public class StopNameNormalizer {
         Collections.sort(normalizedParts); // overkill for a swap operation
         String result = Joiner.on(" & ").join(normalizedParts);
         return result;
+    }
+
+    private static final Collection<String> excludeTitleCase = Arrays.asList("AT", "IN", "THE", "OF", "FOR", "A");
+
+    public static String titleCase(String string) {
+        String words[] = string.split(" ");
+        for (int i = 0; i < words.length; i++) {
+            if (excludeTitleCase.contains(words[i]))
+                words[i] = words[i].toLowerCase();
+            else if (words[i].length() > 1){
+                String word = words[i].toLowerCase();
+                word = word.substring(0, 1).toUpperCase() + word.substring(1, word.length());
+                words[i] = word;
+            }
+        }
+        return Joiner.on(" ").join(words);
     }
 
 }

@@ -32,6 +32,7 @@ import org.opentripplanner.gtfs.GtfsLibrary;
 import org.opentripplanner.index.model.*;
 import org.opentripplanner.profile.Segment;
 import org.opentripplanner.profile.StopCluster;
+import org.opentripplanner.profile.StopNameNormalizer;
 import org.opentripplanner.routing.edgetype.SimpleTransfer;
 import org.opentripplanner.routing.edgetype.Timetable;
 import org.opentripplanner.routing.edgetype.TripPattern;
@@ -61,6 +62,7 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 import java.text.ParseException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 // TODO move to org.opentripplanner.api.resource, this is a Jersey resource class
 
@@ -315,21 +317,28 @@ public class IndexAPI {
     @Path("/stops/autocomplete/{start}")
     public Response getStopsAutocomplete(@PathParam("start") String start) {
         String startLower = start.toLowerCase();
-        Collection<Stop> stops = index.stopForId.values();
+        Collection<StopCluster> clusters = index.stopClusterForId.values();
+
         Map<String, StopShort> ret = new HashMap<>();
-        for (Stop stop : stops) {
-            if (stop.getName().toLowerCase().startsWith(startLower)) {
-                String shortName =  stop.getName().split("-")[0].trim();
-                if (ret.get(shortName) == null) {
-                    StopShort s = new StopShort(stop);
-                    s.name = shortName;
-                    ret.put(s.name, s);
+        for (StopCluster cluster : clusters) {
+            if (cluster.name.toLowerCase().startsWith(startLower) && correctAgency(cluster)) {
+                String name = StopNameNormalizer.titleCase(cluster.name);
+                name = name.split("-")[0].trim();
+
+                if (ret.get(name) == null) {
+                    StopShort s = new StopShort(cluster.children.get(0));
+                    s.name = name;
+                    ret.put(name, s);
                 }
             }
         }
         return Response.status(Status.OK).entity(ret.values()).build();
     }
 
+    private static boolean correctAgency(StopCluster cluster) {
+        List<String> agencies = cluster.children.stream().map(t -> t.getId().getAgencyId()).collect(Collectors.toList());
+        return agencies.contains("2");
+    }
 
     /**
      * Return the generated transfers a stop in the graph, by stop ID
