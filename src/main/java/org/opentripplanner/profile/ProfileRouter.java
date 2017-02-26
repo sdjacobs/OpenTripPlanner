@@ -343,7 +343,7 @@ public class ProfileRouter {
         }
         /* Include the direct (no-transit) biking, driving, and walking options. */
         options.add(new Option(null, directPaths, null));
-        return new ProfileResponse(options, request.orderBy, request.limit);
+        return new ProfileResponse(options, request.orderBy, request.limit, graph);
     }
 
     /** @return the set of qualified modes used to access the chain of rides ending with the given ride. */

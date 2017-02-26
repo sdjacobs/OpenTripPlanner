@@ -3,6 +3,7 @@ package org.opentripplanner.profile;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import org.opentripplanner.index.model.RouteShort;
+import org.opentripplanner.index.model.StopPairSchedule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ public class Option {
     public Stats stats = new Stats();
     public String summary;
     public List<DCFareCalculator.Fare> fares;
+    public List<List<StopPairSchedule>> schedules;
     // The fares are outside the transit segments because a fare can apply to multiple segments so there is no one-to-one
     // correspondance. For example, when you transfer from one subway to another and pay one fare for the two segments.
 
@@ -88,7 +90,7 @@ public class Option {
     }
 
     public static enum SortOrder {
-        MIN, AVG, MAX;
+        MIN, AVG, MAX, DIFFERENCE;
     }
 
     public static class MinComparator implements Comparator<Option> {
