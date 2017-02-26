@@ -33,4 +33,40 @@ public class RouteShort {
         return out;
     }
 
+    @Override
+    public String toString() {
+        if (shortName != null)
+            return shortName;
+        if (longName != null)
+            return longName;
+        if (id != null)
+            return id.toString();
+        return "RouteShort";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RouteShort that = (RouteShort) o;
+
+        if (id != null ? !id.equals(that.id) : that.id != null) return false;
+        if (shortName != null ? !shortName.equals(that.shortName) : that.shortName != null) return false;
+        if (longName != null ? !longName.equals(that.longName) : that.longName != null) return false;
+        if (mode != null ? !mode.equals(that.mode) : that.mode != null) return false;
+        if (color != null ? !color.equals(that.color) : that.color != null) return false;
+        return agencyName != null ? agencyName.equals(that.agencyName) : that.agencyName == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = id != null ? id.hashCode() : 0;
+        result = 31 * result + (shortName != null ? shortName.hashCode() : 0);
+        result = 31 * result + (longName != null ? longName.hashCode() : 0);
+        result = 31 * result + (mode != null ? mode.hashCode() : 0);
+        result = 31 * result + (color != null ? color.hashCode() : 0);
+        result = 31 * result + (agencyName != null ? agencyName.hashCode() : 0);
+        return result;
+    }
 }

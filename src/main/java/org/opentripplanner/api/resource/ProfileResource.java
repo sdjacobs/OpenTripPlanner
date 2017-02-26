@@ -68,7 +68,7 @@ public class ProfileResource {
             @QueryParam("maxBikeTime")  @DefaultValue("20")    int maxBikeTime,
             @QueryParam("minCarTime")   @DefaultValue("1")     int minCarTime,
             @QueryParam("minBikeTime")  @DefaultValue("1")     int minBikeTime,
-            @QueryParam("orderBy")      @DefaultValue("DIFFERENCE")   Option.SortOrder orderBy,
+            @QueryParam("orderBy")      @DefaultValue("AVG")   Option.SortOrder orderBy,
             @QueryParam("limit")        @DefaultValue("15")    int limit,       // max options to return PER ACCESS MODE
             @QueryParam("suboptimal")   @DefaultValue("5")     int suboptimalMinutes,
             @QueryParam("bikeSafe")     @DefaultValue("1")     int bikeSafe,
@@ -148,34 +148,13 @@ public class ProfileResource {
             ProfileRouter router = new ProfileRouter(graph, req);
             try {
                 ProfileResponse response = router.route();
-                addTransitTimes(response, date);
+                response.addTransitTimes(graph, date.toJoda().toDate());
                 return Response.status(Status.OK).entity(response).build();
             } catch (Throwable throwable) {
                 LOG.error("Exception caught in profile routing", throwable);
                 return Response.status(Status.INTERNAL_SERVER_ERROR).entity(throwable.toString()).build();
             } finally {
                 router.cleanup(); // destroy routing contexts even when an exception happens
-            }
-        }
-    }
-
-
-    private void addTransitTimes(ProfileResponse response, YearMonthDay ymd) {
-        Date date = ymd.toJoda().toDate();
-        long startTime = date.getTime()/1000;
-        int timeRange = 24 * 60 * 60; // one day
-        for (Option option : response.options) {
-            if (option.transit == null)
-                continue;
-            for (Segment leg : option.transit) {
-                List<StopPairSchedule> schedule = new ArrayList<>();
-                for (Segment.SegmentPattern pattern : leg.segmentPatterns) {
-                    TripPattern tripPattern = graph.index.patternForId.get(pattern.patternId);
-                    List<StopPairSchedule> s =
-                            graph.index.stopTimesForPattern(tripPattern, pattern.fromIndex, pattern.toIndex, startTime, timeRange);
-                    schedule.addAll(s);
-                }
-                leg.schedule = schedule;
             }
         }
     }

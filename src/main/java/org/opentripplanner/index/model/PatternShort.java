@@ -21,6 +21,6 @@ public class PatternShort {
         List<PatternShort> out = Lists.newArrayList();
         for (TripPattern pattern : in) out.add(new PatternShort(pattern));
         return out;
-    }    
-    
+    }
+
 }

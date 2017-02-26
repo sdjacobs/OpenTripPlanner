@@ -9,6 +9,7 @@ import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.TObjectIntMap;
 import org.onebusaway.gtfs.model.Stop;
 import org.opentripplanner.analyst.TimeSurface;
+import org.opentripplanner.api.param.YearMonthDay;
 import org.opentripplanner.api.parameter.QualifiedMode;
 import org.opentripplanner.api.parameter.QualifiedModeSet;
 import org.opentripplanner.api.resource.SimpleIsochrone;
@@ -343,7 +344,7 @@ public class ProfileRouter {
         }
         /* Include the direct (no-transit) biking, driving, and walking options. */
         options.add(new Option(null, directPaths, null));
-        return new ProfileResponse(options, request.orderBy, request.limit, graph);
+        return new ProfileResponse(options, request.orderBy, request.limit, graph, request.date.toDate());
     }
 
     /** @return the set of qualified modes used to access the chain of rides ending with the given ride. */

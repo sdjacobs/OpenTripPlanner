@@ -70,5 +70,50 @@ public class TripTimeShort {
         }
         return out;
     }
-    
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        TripTimeShort that = (TripTimeShort) o;
+
+        if (stopIndex != that.stopIndex) return false;
+        if (stopCount != that.stopCount) return false;
+        if (scheduledArrival != that.scheduledArrival) return false;
+        if (scheduledDeparture != that.scheduledDeparture) return false;
+        if (realtimeArrival != that.realtimeArrival) return false;
+        if (realtimeDeparture != that.realtimeDeparture) return false;
+        if (arrivalDelay != that.arrivalDelay) return false;
+        if (departureDelay != that.departureDelay) return false;
+        if (timepoint != that.timepoint) return false;
+        if (realtime != that.realtime) return false;
+        if (serviceDay != that.serviceDay) return false;
+        if (stopId != null ? !stopId.equals(that.stopId) : that.stopId != null) return false;
+        if (realtimeState != that.realtimeState) return false;
+        if (tripId != null ? !tripId.equals(that.tripId) : that.tripId != null) return false;
+        if (blockId != null ? !blockId.equals(that.blockId) : that.blockId != null) return false;
+        return headsign != null ? headsign.equals(that.headsign) : that.headsign == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = stopId != null ? stopId.hashCode() : 0;
+        result = 31 * result + stopIndex;
+        result = 31 * result + stopCount;
+        result = 31 * result + scheduledArrival;
+        result = 31 * result + scheduledDeparture;
+        result = 31 * result + realtimeArrival;
+        result = 31 * result + realtimeDeparture;
+        result = 31 * result + arrivalDelay;
+        result = 31 * result + departureDelay;
+        result = 31 * result + (timepoint ? 1 : 0);
+        result = 31 * result + (realtime ? 1 : 0);
+        result = 31 * result + (realtimeState != null ? realtimeState.hashCode() : 0);
+        result = 31 * result + (int) (serviceDay ^ (serviceDay >>> 32));
+        result = 31 * result + (tripId != null ? tripId.hashCode() : 0);
+        result = 31 * result + (blockId != null ? blockId.hashCode() : 0);
+        result = 31 * result + (headsign != null ? headsign.hashCode() : 0);
+        return result;
+    }
 }

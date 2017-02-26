@@ -4,13 +4,12 @@ import com.beust.jcommander.internal.Sets;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
+import org.onebusaway.gtfs.model.AgencyAndId;
 import org.opentripplanner.index.model.RouteShort;
+import org.opentripplanner.index.model.StopPairSchedule;
 import org.opentripplanner.routing.core.TraverseMode;
-import org.opentripplanner.routing.edgetype.PatternHop;
 import org.opentripplanner.routing.edgetype.TripPattern;
 import org.opentripplanner.routing.graph.Graph;
 import org.slf4j.Logger;
@@ -25,8 +24,15 @@ public class ProfileResponse {
     private static final Logger LOG = LoggerFactory.getLogger(ProfileResponse.class);
 
     private static final boolean filterBadResults = true;
+    private static final int minTransferTime = 5 * 60;
+    private static double filter = 1.5;
+
+    private static final Comparator<List<StopPairSchedule>> EARLIEST_SCHED = (s, t) ->
+                    s.get(0).orig.realtimeDeparture - t.get(0).orig.realtimeDeparture;
 
     public Set<Option> options = Sets.newHashSet();
+
+    public Set<List<StopPairSchedule>> schedules = Sets.newHashSet();
 
     /**
      * The constructed response will include all the options that do not use transit,
@@ -37,12 +43,14 @@ public class ProfileResponse {
      * @param limit the maximum number of transit options to include in the response per access mode.
      *              zero or negative means no limit.
      */
-    public ProfileResponse (Collection<Option> allOptions, Option.SortOrder orderBy, int limit, Graph graph) {
+    public ProfileResponse (Collection<Option> allOptions, Option.SortOrder orderBy, int limit, Graph graph, Date date) {
         List<Option> transitOptions = Lists.newArrayList();
         // Always return all non-transit options
         for (Option option : allOptions) {
             if (option.transit == null || option.transit.isEmpty()) options.add(option);
-            else transitOptions.add(option);
+            else
+                transitOptions.add(option);
+
         }
         // Order all transit options by the specified method
         if (!orderBy.equals(Option.SortOrder.DIFFERENCE)) {
@@ -71,12 +79,15 @@ public class ProfileResponse {
                 transitOptionsByAccessMode.put(segment.mode.mode, option);
             }
         }
+        Option best = Collections.min(transitOptions, (s,t) -> s.stats.avg - t.stats.avg);
         // Retain the top N transit options for each access mode. Duplicates may be present, but options is a Set.
         for (Collection<Option> singleModeOptions : transitOptionsByAccessMode.asMap().values()) {
             int n = 0;
             for (Option option : singleModeOptions) {
-                options.add(option);
-                if (limit > 0 && ++n >= limit) break;
+                if (okOption(option, best)) {
+                    options.add(option);
+                    if (limit > 0 && ++n >= limit) break;
+                }
             }
         }
         for (Option option : this.options) {
@@ -86,7 +97,6 @@ public class ProfileResponse {
 
     // sort by difference
     // filter out bad results
-    // add schedules
     private static List<Option> sortByDifference(List<Option> options, Graph graph) {
 
         SortedSetMultimap<String, Option> optionsByLongestLeg = TreeMultimap.create(String::compareTo,
@@ -102,14 +112,13 @@ public class ProfileResponse {
         Set<Map.Entry<String, Collection<Option>>> opts = optionsByLongestLeg.asMap().entrySet();
         Set<Iterator<Option>> optIter = opts.stream().map(e -> e.getValue().iterator()).collect(Collectors.toSet());
 
-        Option best = Collections.max(optionsByLongestLeg.values(), (s,t) -> s.stats.avg - t.stats.avg);
+        Option best = Collections.max(options, (s,t) -> s.stats.avg - t.stats.avg);
 
         while (ret.size() != options.size()) {
             for (Iterator<Option> iter : optIter) {
                 if (iter.hasNext()) {
                     Option opt = iter.next();
-                    addSchedules(option);
-                    if (opt.stats.avg < best.stats.avg * 2 || !filterBadResults)
+                    if (opt.stats.avg < best.stats.avg * 1.5 || !filterBadResults)
                         ret.add(opt);
                 }
             }
@@ -130,5 +139,146 @@ public class ProfileResponse {
             tot++;
         }
         return sum/tot;
+    }
+
+    public void addTransitTimes(Graph graph, Date date) {
+        Set<Schedule> scheduleSet = Sets.newHashSet();
+        for (Option option : options)
+            if (option.transit != null)
+                scheduleSet.addAll(Schedule.fromCollection(addSchedules(option, graph, date)));
+        for (Schedule sched : scheduleSet)
+            schedules.add(sched.getSchedule());
+    }
+
+    private List<List<StopPairSchedule>> addSchedules(Option option, Graph graph, Date date) {
+
+        // schedules, ordered by start time
+        SortedSet<List<StopPairSchedule>> schedules = new TreeSet<>(EARLIEST_SCHED);
+
+        // iterate through the segments in reverse order creating candidates
+        Iterator<Segment> iter = Lists.reverse(option.transit).iterator();
+        while (iter.hasNext()) {
+
+            Segment seg = iter.next();
+            List<StopPairSchedule> theseTimes = allTransitTimes(graph, seg, date);
+            if (theseTimes.isEmpty()) {
+                LOG.info("found no times for routes={}, day={}", seg.routes, date);
+                return Collections.emptyList();
+            }
+            if (schedules.isEmpty()) {
+                for (StopPairSchedule s : theseTimes) {
+                    List<StopPairSchedule> sched = new ArrayList<>();
+                    sched.add(s);
+                    schedules.add(sched);
+                }
+                continue;
+            }
+            // nonempty.
+            SortedSet<List<StopPairSchedule>> schedulesNextIteration = new TreeSet<>(EARLIEST_SCHED);
+            Iterator<List<StopPairSchedule>> candidates = schedules.iterator();
+
+            List<StopPairSchedule> candidateSchedule = null;
+            for (int i = 0; i < theseTimes.size(); i++) {
+                StopPairSchedule time = theseTimes.get(i);
+                // find first appropriate schedule
+                while(candidates.hasNext() && candidateSchedule == null) {
+                    candidateSchedule = candidates.next();
+                    StopPairSchedule next = candidateSchedule.get(0);
+                    if (time.dest.realtimeArrival + minTransferTime < next.orig.realtimeDeparture)
+                        break; // found it
+                    else
+                        candidateSchedule = null;
+                }
+                if (candidateSchedule == null)
+                    continue;
+                // check if next time works.
+                if (i < theseTimes.size() - 1) {
+                    StopPairSchedule nextTime = theseTimes.get(i+1);
+                    StopPairSchedule next = candidateSchedule.get(0);
+                    if (nextTime.dest.realtimeArrival + minTransferTime < next.orig.realtimeDeparture)
+                        continue; // skip this iteration (but hold on to candidateSchedule)
+                }
+
+                // we found a good schedule and the next time isn't any better
+                candidateSchedule.add(0, time);
+                schedulesNextIteration.add(candidateSchedule);
+                candidateSchedule = null;
+            }
+            schedules = schedulesNextIteration;
+        }
+
+        return new ArrayList<List<StopPairSchedule>>(schedules);
+    }
+
+
+    private List<StopPairSchedule> allTransitTimes(Graph graph, Segment leg, Date date) {
+        long startTime = date.getTime()/1000;
+        int timeRange = 24 * 60 * 60; // one day
+        List<StopPairSchedule> schedule = new ArrayList<>();
+        for (Segment.SegmentPattern pattern : leg.segmentPatterns) {
+            TripPattern tripPattern = graph.index.patternForId.get(pattern.patternId);
+            List<StopPairSchedule> s =
+                    graph.index.stopTimesForPattern(tripPattern, pattern.fromIndex, pattern.toIndex, startTime, timeRange);
+            schedule.addAll(s);
+        }
+        schedule.sort((x, y) -> x.orig.realtimeDeparture - y.orig.realtimeDeparture);
+        return schedule;
+    }
+
+    private static boolean trivialOption(Option o, Option best) {
+        if (o.transit == null)
+            return false;
+        // o is trivial if it has more transfers than best, but starts with same route
+        if (o.transit.size() > best.transit.size()) {
+            for (RouteShort route : o.transit.get(0).routes) {
+                if (best.transit.get(0).routes.contains(route)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean okOption(Option o, Option best) {
+        if (!filterBadResults)
+            return true;
+        if (trivialOption(o, best))
+            return false;
+        if (o.stats.avg > filter * best.stats.avg)
+            return false;
+        if (o.transit.size() >= 3 * best.transit.size())
+            return false;
+        return true;
+    }
+}
+
+class Schedule {
+
+    // schedule is defined JUST by the sequence of trip IDs.
+    private List<StopPairSchedule> schedule;
+    private List<AgencyAndId> tripIds;
+
+    public Schedule(List<StopPairSchedule> schedule) {
+        this.schedule = schedule;
+        tripIds = schedule.stream().map(s -> s.tripId).collect(Collectors.toList());
+    }
+
+    public static Collection<Schedule> fromCollection(Collection<List<StopPairSchedule>> col) {
+        return col.stream().map(x -> new Schedule(x)).collect(Collectors.toSet());
+    }
+
+    public List<StopPairSchedule> getSchedule() {
+        return schedule;
+    }
+
+    public int hashCode() {
+        return tripIds.hashCode();
+    }
+
+    public boolean equals(Object o) {
+        if (o == null || !o.getClass().equals(this.getClass()))
+            return false;
+        Schedule that = (Schedule) o;
+        return that.tripIds.equals(tripIds);
     }
 }
