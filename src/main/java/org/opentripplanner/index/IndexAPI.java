@@ -321,8 +321,9 @@ public class IndexAPI {
 
         Map<String, StopShort> ret = new HashMap<>();
         for (StopCluster cluster : clusters) {
-            if (cluster.name.toLowerCase().startsWith(startLower) && correctAgency(cluster)) {
-                String name = StopNameNormalizer.titleCase(cluster.name);
+            if ((start.equals("*") || cluster.name.toLowerCase().startsWith(startLower)) && correctAgency(cluster)) {
+                // would need to titlecase but for change in StopNameNormalizer
+                String name = cluster.name;
                 name = name.split("-")[0].trim();
 
                 if (ret.get(name) == null) {
