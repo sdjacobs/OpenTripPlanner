@@ -1,0 +1,3 @@
+[submodule "src/client"]
+	path = src/client
+	url = /Users/sjacobs/hack/timetable
