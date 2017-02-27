@@ -32,7 +32,7 @@ public class ProfileResponse {
 
     public Set<Option> options = Sets.newHashSet();
 
-    public Set<List<StopPairSchedule>> schedules = Sets.newHashSet();
+    public Set<Schedule> schedules = Sets.newHashSet();
 
     /**
      * The constructed response will include all the options that do not use transit,
@@ -142,12 +142,16 @@ public class ProfileResponse {
     }
 
     public void addTransitTimes(Graph graph, Date date) {
-        Set<Schedule> scheduleSet = Sets.newHashSet();
-        for (Option option : options)
-            if (option.transit != null)
-                scheduleSet.addAll(Schedule.fromCollection(addSchedules(option, graph, date)));
-        for (Schedule sched : scheduleSet)
-            schedules.add(sched.getSchedule());
+        for (Option option : options) {
+            if (option.transit != null) {
+                int access = 0, egress = 0;
+                for (StreetSegment seg : option.access)
+                    access += seg.time;
+                for (StreetSegment seg : option.egress)
+                    egress += seg.time;
+                schedules.addAll(Schedule.fromCollection(addSchedules(option, graph, date), access, egress));
+            }
+        }
     }
 
     private List<List<StopPairSchedule>> addSchedules(Option option, Graph graph, Date date) {
@@ -249,36 +253,5 @@ public class ProfileResponse {
         if (o.transit.size() >= 3 * best.transit.size())
             return false;
         return true;
-    }
-}
-
-class Schedule {
-
-    // schedule is defined JUST by the sequence of trip IDs.
-    private List<StopPairSchedule> schedule;
-    private List<AgencyAndId> tripIds;
-
-    public Schedule(List<StopPairSchedule> schedule) {
-        this.schedule = schedule;
-        tripIds = schedule.stream().map(s -> s.tripId).collect(Collectors.toList());
-    }
-
-    public static Collection<Schedule> fromCollection(Collection<List<StopPairSchedule>> col) {
-        return col.stream().map(x -> new Schedule(x)).collect(Collectors.toSet());
-    }
-
-    public List<StopPairSchedule> getSchedule() {
-        return schedule;
-    }
-
-    public int hashCode() {
-        return tripIds.hashCode();
-    }
-
-    public boolean equals(Object o) {
-        if (o == null || !o.getClass().equals(this.getClass()))
-            return false;
-        Schedule that = (Schedule) o;
-        return that.tripIds.equals(tripIds);
     }
 }

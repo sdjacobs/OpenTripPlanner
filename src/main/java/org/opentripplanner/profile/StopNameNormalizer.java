@@ -63,7 +63,7 @@ public class StopNameNormalizer {
 
     public static String normalize (String name) {
         // Separate the two halves of an intersection. "AT" sometimes appears too.
-        String[] parts = name.split("at|opp|[&@]", 2);
+        String[] parts = name.split("\\sat\\s|\\sopp\\s|[&@]", 2);
         List<String> normalizedParts = Lists.newArrayList();
         for (String part : parts) {
             String quadrant = null;
